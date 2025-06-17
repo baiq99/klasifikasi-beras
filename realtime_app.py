@@ -76,54 +76,22 @@ def predict_rice(image):
     return prediction, prob_dict
 
 # ==== Streamlit UI ====
+
 st.set_page_config(page_title="Klasifikasi Jenis Beras", layout="centered")
-st.title("📷 Aplikasi Deteksi Jenis Beras (SVM)")
-mode = st.radio("Pilih Mode", ["📁 Upload Gambar", "🎥 Kamera Real-time"])
+st.title("📁 Deteksi Jenis Beras dengan Upload Gambar")
 
-if mode == "📁 Upload Gambar":
-    uploaded = st.file_uploader("Upload Citra Beras", type=["jpg", "png", "jpeg"])
-    if uploaded:
-        file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, 1)
-        st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Gambar Diupload", width=300)
-        pred, probs = predict_rice(image)
-        st.success(f"✅ Jenis Beras: {pred}")
-        st.metric("Probabilitas Tertinggi", f"{max(probs.values()):.2f}%")
-        st.markdown("### Distribusi Probabilitas:")
-        st.dataframe(pd.DataFrame(probs.items(), columns=["Jenis Beras", "Probabilitas (%)"]))
+uploaded = st.file_uploader("Upload Citra Beras", type=["jpg", "jpeg", "png"])
 
-elif mode == "🎥 Kamera Real-time":
-    run = st.checkbox("▶ Mulai Kamera")
-    stframe = st.empty()
+if uploaded:
+    file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
+    image = cv2.imdecode(file_bytes, 1)
 
-    if run:
-        camera = cv2.VideoCapture(0)
-        st.info("📡 Kamera aktif. Hilangkan centang untuk berhenti.")
+    st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Gambar yang Diunggah", width=300)
 
-        while run:
-            ret, frame = camera.read()
-            if not ret:
-                st.warning("❌ Gagal membaca kamera.")
-                break
+    pred, probs = predict_rice(image)
 
-            display_frame = frame.copy()
-            gray = cv2.cvtColor(display_frame, cv2.COLOR_BGR2GRAY)
-            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                           cv2.THRESH_BINARY_INV, 21, 10)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [c for c in contours if cv2.contourArea(c) > 500]
+    st.success(f"✅ Jenis Beras: {pred}")
+    st.metric("Probabilitas Tertinggi", f"{max(probs.values()):.2f}%")
 
-            if contours:
-                biggest = max(contours, key=cv2.contourArea)
-                x, y, w, h = cv2.boundingRect(biggest)
-                roi = frame[y:y + h, x:x + w]
-                pred, probs = predict_rice(roi)
-                label = f"{pred} ({max(probs.values()):.1f}%)"
-                cv2.rectangle(display_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(display_frame, label, (x, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-
-            stframe.image(cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB), channels="RGB")
-
-        camera.release()
-        st.success("✅ Kamera dimatikan.")
+    st.markdown("### Distribusi Probabilitas:")
+    st.dataframe(pd.DataFrame(probs.items(), columns=["Jenis Beras", "Probabilitas (%)"]))
