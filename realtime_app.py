@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import joblib
 from PIL import Image
+import platform
 
 # ==== Load Model dan Scaler ====
 model = joblib.load("model/svm_model.pkl")
@@ -76,9 +77,15 @@ def predict_rice(image):
     return prediction, prob_dict
 
 # ==== Streamlit UI ====
+
 st.set_page_config(page_title="Klasifikasi Jenis Beras", layout="centered")
 st.title("📷 Aplikasi Deteksi Jenis Beras (SVM)")
 mode = st.radio("Pilih Mode", ["📁 Upload Gambar", "🎥 Kamera Real-time"])
+
+# Deteksi jika berjalan di Android (hanya untuk info)
+user_agent = st.session_state.get("_user_agent", "")
+if "android" in user_agent.lower():
+    st.warning("⚠ Akses kamera di browser Android dibatasi oleh sistem. Gunakan fitur 'Upload Gambar'.")
 
 if mode == "📁 Upload Gambar":
     uploaded = st.file_uploader("Upload Citra Beras", type=["jpg", "png", "jpeg"])
@@ -93,37 +100,39 @@ if mode == "📁 Upload Gambar":
         st.dataframe(pd.DataFrame(probs.items(), columns=["Jenis Beras", "Probabilitas (%)"]))
 
 elif mode == "🎥 Kamera Real-time":
-    run = st.checkbox("▶ Mulai Kamera")
+    run = st.checkbox("▶ Mulai Kamera (Desktop saja)")
     stframe = st.empty()
 
     if run:
         camera = cv2.VideoCapture(0)
-        st.info("📡 Kamera aktif. Hilangkan centang untuk berhenti.")
+        if not camera.isOpened():
+            st.error("❌ Gagal mengakses kamera. Fitur ini hanya berfungsi di laptop/PC.")
+        else:
+            st.info("📡 Kamera aktif. Hilangkan centang untuk berhenti.")
+            while run:
+                ret, frame = camera.read()
+                if not ret:
+                    st.warning("❌ Gagal membaca kamera.")
+                    break
 
-        while run:
-            ret, frame = camera.read()
-            if not ret:
-                st.warning("❌ Gagal membaca kamera.")
-                break
+                display_frame = frame.copy()
+                gray = cv2.cvtColor(display_frame, cv2.COLOR_BGR2GRAY)
+                thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                               cv2.THRESH_BINARY_INV, 21, 10)
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                contours = [c for c in contours if cv2.contourArea(c) > 500]
 
-            display_frame = frame.copy()
-            gray = cv2.cvtColor(display_frame, cv2.COLOR_BGR2GRAY)
-            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                           cv2.THRESH_BINARY_INV, 21, 10)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [c for c in contours if cv2.contourArea(c) > 500]
+                if contours:
+                    biggest = max(contours, key=cv2.contourArea)
+                    x, y, w, h = cv2.boundingRect(biggest)
+                    roi = frame[y:y + h, x:x + w]
+                    pred, probs = predict_rice(roi)
+                    label = f"{pred} ({max(probs.values()):.1f}%)"
+                    cv2.rectangle(display_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                    cv2.putText(display_frame, label, (x, y - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
-            if contours:
-                biggest = max(contours, key=cv2.contourArea)
-                x, y, w, h = cv2.boundingRect(biggest)
-                roi = frame[y:y + h, x:x + w]
-                pred, probs = predict_rice(roi)
-                label = f"{pred} ({max(probs.values()):.1f}%)"
-                cv2.rectangle(display_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(display_frame, label, (x, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+                stframe.image(cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB), channels="RGB")
 
-            stframe.image(cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB), channels="RGB")
-
-        camera.release()
-        st.success("✅ Kamera dimatikan.")
+            camera.release()
+            st.success("✅ Kamera dimatikan.")

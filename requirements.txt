@@ -3,5 +3,5 @@ opencv-python-headless
 numpy
 pandas
 joblib
-scikit-learn
 Pillow
+scikit-learn==1.6.1
