@@ -78,7 +78,7 @@ def predict_rice(image):
 # ==== Streamlit UI ====
 
 st.set_page_config(page_title="Klasifikasi Jenis Beras", layout="centered")
-st.title("📁 Deteksi Jenis Beras dengan Upload Gambar")
+st.title("Klasifikasi Jenis Beras menggunakan SVM")
 
 uploaded = st.file_uploader("Upload Citra Beras", type=["jpg", "jpeg", "png"])
 
@@ -90,7 +90,7 @@ if uploaded:
 
     pred, probs = predict_rice(image)
 
-    st.success(f"✅ Jenis Beras: {pred}")
+    st.success(f"Jenis Beras: {pred}")
     st.metric("Probabilitas Tertinggi", f"{max(probs.values()):.2f}%")
 
     st.markdown("### Distribusi Probabilitas:")
